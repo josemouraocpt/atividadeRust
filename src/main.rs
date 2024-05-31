@@ -1,14 +1,18 @@
 use std::io::{self};
-use std::fs::File;
-use std::io::{BufReader, stdin};
+use std::fs::{self, File};
+use std::io::{stdin};
 use std::path::Path;
-#[derive(Debug, Clone, PartialEq, PartialOrd, serde_derive::Deserialize)]
+use std::fs::read_to_string;
+extern crate regex;
+use regex::Regex;
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Reserva{
     numero_reserva: i32,
     nome_hotel: String,
     numero_quarto: i32,
     data_check_in: String,
-    data_check_out: String
+    data_check_out: String,
+    hash_check_in: String
 }
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 struct Hash{
@@ -23,13 +27,22 @@ struct HashMap{
 
 impl Reserva{
     fn new(numero_reserva: i32, nome_hotel: String, numero_quarto: i32, data_check_in: String, data_check_out: String) -> Reserva{
+        let hash_check_in = Self::hash_check_in(data_check_in.clone());
         Reserva{
             numero_reserva,
             nome_hotel,
             numero_quarto,
             data_check_in,
-            data_check_out
+            data_check_out,
+            hash_check_in
         }
+    }
+    fn hash_check_in(data_check_in: String) -> String{
+        let dia = &data_check_in[..2];
+        let mes = &data_check_in[3..5];
+        let ano = &data_check_in[6..];
+        let hashed_date = mes.to_owned() + &((&dia.parse::<i32>().unwrap()* &mes.parse::<i32>().unwrap() * &ano.parse::<i32>().unwrap()) % 3).to_string() + ano + dia;
+        return  hashed_date;
     }
 }
 
@@ -94,6 +107,10 @@ impl HashMap{
         return;
     }
 
+    fn show_struct(&self){
+        println!("Estrutura do HASPMAP:\n{:#?}", self.values);
+    }
+
 }
 
 
@@ -121,13 +138,18 @@ impl Hash{
 }
 
 fn main() {
-    let path = Path::new("./reservas.json");
-    let file = File::open(&path).unwrap();
-    let reader = BufReader::new(file);
-    let json: Vec<Reserva> = serde_json::from_reader(reader).unwrap();
+    let path = Path::new("./reservas.txt");
+    let mut lines = Vec::new();
+    let binding = read_to_string(path).unwrap();
+    for line in binding.lines(){
+        let line_arr: Vec<&str> = line.trim().split(&[',', ':'][..]).collect();
+        lines.push(line_arr);
+    }
+    let hash_postions: i32 = lines[0][0].parse().unwrap();
+    lines.remove(0);
     let mut hash_map: HashMap = HashMap::new();
-    for i in 0..=json.len()-1{
-        let reserva: Reserva = Reserva::new(json[i].numero_reserva, json[i].nome_hotel.to_owned(), json[i].numero_quarto, json[i].data_check_in.to_owned(), json[i].data_check_out.to_owned());
+    for line in lines.iter(){
+        let reserva: Reserva = Reserva::new(line[0].trim_start().parse::<i32>().unwrap(), line[1].trim_start().to_owned(), line[2].trim_start().parse::<i32>().unwrap(), line[3].trim_start().to_owned(), line[4].trim_start().to_owned());
         let hash: Hash = Hash::new(reserva, hash_map.values.len() as i32);
         hash_map.push(hash);
     }
@@ -140,12 +162,16 @@ fn main() {
         let mut nm_qt: String = String::new();
         let mut data_in: String = String::new();
         let mut data_ou: String = String::new();
+        let re_num = Regex::new(r"[a-zA-Z]|\d{5}").unwrap();
+        let re_date = Regex::new(r"\b(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])/\d{4}\b").unwrap();
+        let mut can_continue = false;
 
         print!("Para ver informações sobre as reservas pressione insira: RESERVAS\n");
         print!("Para incluir uma nova reserva insira: NOVA\n");
         print!("Para cancelar uma reserva insira: CANCELAR\n");
         print!("Para remover uma reserva insira: REMOVER\n");
         print!("Para realizar o check-out de uma reserva insira: CHECK-OUT\n");
+        print!("Para ver a estrutura do HASHMAP insira: ESTRUTURA\n");
         print!("Para sair da aplicação insira: SAIR\n");
         io::stdin().read_line(&mut option).unwrap();
 
@@ -156,6 +182,15 @@ fn main() {
                 hash_map.display();
                 println!("\nEscolha entre as opções 0 a {}: ", hash_map.values.len()-1);
                 io::stdin().read_line(&mut num_reserva).expect("Insira um valor númerico válido");
+
+                can_continue = !re_num.is_match(&num_reserva);
+                while can_continue == false {
+                    num_reserva = "".to_string();
+                    println!("\nEscolha entre as opções 0 a {}: ", hash_map.values.len()-1);
+                    io::stdin().read_line(&mut num_reserva).expect("Insira um valor númerico válido");
+                    can_continue = !re_num.is_match(&num_reserva);
+                }
+
                 let res: i32 = num_reserva.trim().parse().unwrap();
                 if res > (hash_map.values.len()-1) as i32 || res < 0{
                     println!("Valor inserido não é válido!");
@@ -170,6 +205,15 @@ fn main() {
                 hash_map.display();
                 println!("\nEscolha entre as opções 0 a {}: ", hash_map.values.len()-1);
                 io::stdin().read_line(&mut num_reserva).expect("Insira um valor númerico válido");
+
+                can_continue = !re_num.is_match(&num_reserva);
+                while can_continue == false {
+                    num_reserva = "".to_string();
+                    println!("\nEscolha entre as opções 0 a {}: ", hash_map.values.len()-1);
+                    io::stdin().read_line(&mut num_reserva).expect("Insira um valor númerico válido");
+                    can_continue = !re_num.is_match(&num_reserva);
+                }
+
                 let res: i32 = num_reserva.trim().parse().unwrap();
                 if res > (hash_map.values.len()-1) as i32 || res < 0{
                     println!("Valor inserido não é válido!");
@@ -185,32 +229,74 @@ fn main() {
             },
             "NOVA" | "nova" | "Nova" => {
                 print!("Insira as informações a seguir para inserir uma nova reserva:\n");
-                println!("Insira o número da reserva: ");
+
+                println!("Insira o número da reserva: APENAS NÚMEROS ENTRE 0 E 1000");
                 io::stdin().read_line(&mut nm_re).expect("Insira um valor númerico válido");
-                let num_res: i32 = nm_re.trim().parse().unwrap();
+
+                can_continue = !re_num.is_match(&nm_re);
+                while can_continue == false{
+                    nm_re = "".to_string();
+                    println!("Insira o número da reserva: APENAS NÚMEROS ENTRE 0 E 1000");
+                    io::stdin().read_line(&mut nm_re).expect("Insira um valor númerico válido");
+                    can_continue = !re_num.is_match(&nm_re);
+                }
                 
                 println!("Insira o nome do hotel: ");
                 stdin().read_line(&mut nm_ht).unwrap();
-                let nom_hot: String = nm_ht.trim().parse().unwrap();
-
-                println!("Insira o número do quarto: ");
+                while nm_ht.len() == 2{
+                    println!("Insira o nome do hotel: ");
+                    stdin().read_line(&mut nm_ht).unwrap();
+                }
+                
+                println!("Insira o número do quarto: APENAS NÚMEROS ENTRE 0 E 1000");
                 io::stdin().read_line(&mut nm_qt).expect("Insira um valor númerico válido");
+
+                can_continue = !re_num.is_match(&nm_qt);
+                while can_continue == false {
+                    nm_qt = "".to_string();
+                    println!("Insira o número do quarto: APENAS NÚMEROS ENTRE 0 E 1000");
+                    io::stdin().read_line(&mut nm_qt).expect("Insira um valor númerico válido");
+                    can_continue = !re_num.is_match(&nm_qt);
+                }
+            
+                println!("Insira a data do check-in: Padrão 01/01/2000");
+                stdin().read_line(&mut data_in).expect("Insira uma data válida");
+
+                can_continue = re_date.is_match(&data_in);
+                while can_continue == false {
+                    data_in = "".to_string();
+                    println!("Insira a data do check-in: Padrão 01/01/2000");
+                    stdin().read_line(&mut data_in).expect("Insira uma data válida");
+                    can_continue = re_date.is_match(&data_in);
+                }
+                
+                println!("Insira a data do check-out: Padrão 01/01/2000");
+                stdin().read_line(&mut data_ou).expect("Insira uma data válida");
+
+                can_continue = re_date.is_match(&data_ou);
+                while can_continue == false {
+                    data_ou = "".to_string();
+                    println!("Insira a data do check-out: Padrão 01/01/2000");
+                    stdin().read_line(&mut data_ou).expect("Insira uma data válida");
+                    can_continue = re_date.is_match(&data_ou);
+                }
+                
+                
+                let num_res: i32 = nm_re.trim().parse().unwrap();
+                let nom_hot: String = nm_ht.trim().parse().unwrap();
                 let num_qua: i32 = nm_qt.trim().parse().unwrap();
-
-                println!("Insira a data do check-in: ");
-                stdin().read_line(&mut data_in).unwrap();
                 let dt_in: String = data_in.trim().parse().unwrap();
-
-                println!("Insira a data do check-out: ");
-                stdin().read_line(&mut data_ou).unwrap();
                 let dt_out: String = data_ou.trim().parse().unwrap();
-
                 let reserva: Reserva = Reserva::new(num_res, nom_hot, num_qua, dt_in, dt_out);
                 let hash: Hash = Hash::new(reserva, hash_map.values.len() as i32);
                 hash_map.push(hash);
 
             },
+            "ESTRUTURA" | "estrutura" | "Estrutura" => {
+                hash_map.show_struct();
+            }
             _ => println!("Entrada não aceita!\nInsira um novo valor!")
         }
     }
+    println!("Obrigado por visitar!");
 }
